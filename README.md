@@ -12,7 +12,7 @@ https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.github
 ```
 
 The first line of the form shows the template version, e.g.
-`Template version: 20261028200000`.
+`Template version: 20261028210000`.
 
 ---
 
@@ -22,18 +22,19 @@ In the resource group you pick:
 
 - A virtual network with a management subnet and a data subnet, each with its
   own NSG attached to the subnet. Or an existing network, used as it is.
-- A staging storage account (`stvhd` plus 13 characters) that the EMP VHD is
+- A staging storage account that the EMP VHD is
   copied into from the warehouse. Azure builds gallery images only from a VHD
   in the same subscription. The staged copy is deleted at the end; the empty
   account stays for the next run.
-- A compute gallery (`gal_<resource group>` unless you name one) with the image
-  definition `emp` and one version, e.g. `0.20.0`. EMP adds the FileDS and
+- A compute gallery (`<name>_gal`) with the image definition `emp` and one
+  version, e.g. `0.20.0`. Its delete protection is off, so the version can be
+  removed like any other resource. EMP adds the FileDS and
   BlockDS controller images to the same gallery later.
 - The EMP VM: Ubuntu with EMP and its performance collector in Docker, a static
   private IP on the management subnet (host 50 by default), a public IP if you
   ask for one, managed boot diagnostics. No NSG on its NIC.
 
-Two deployment scripts (`stage-emp-vhd`, `unstage-emp-vhd`) do the copying.
+Two deployment scripts (`<name>-stage-emp-vhd`, `<name>-unstage-emp-vhd`) do the copying.
 Each runs in a short-lived container instance with its own temporary storage,
 both removed when the script succeeds. They use the staging account's key and
 your SAS. They need no managed identity and no role assignments.
@@ -117,46 +118,58 @@ quota. A cluster of three E8bds_v5 controllers needs 24.
 
 | Form field | Example | Notes |
 |---|---|---|
+| Deployment name | `fds1` | 3-12 lowercase letters, numbers and hyphens. The prefix for every resource |
 | Subscription | `contoso-storage-01` | |
-| Resource group | `rg-fds-prod` | Create new, or an empty existing one |
-| Region | `East US` | |
-| Virtual machine name | `emp01` | |
-| Size | `Standard_B2ms` | 2 vCPUs and 8 GiB are enough |
-| Username | `fdsadmin` | The Linux user. EMP's own sign-in is made in the browser |
-| Authentication type | Password or SSH public key | With a key, password login is off |
-
-### EMP image
-
-| Form field | Example | Notes |
-|---|---|---|
-| Warehouse storage account | `nds10192026` | |
-| Container | `emp` | |
-| SAS token | `sv=2026-02-06&ss=b&srt=co&sp=rl&se=...&sig=...` | Read and list on the container |
-| EMP version | `latest` | Or a version, e.g. `0.20.0` |
-| Compute gallery name | *(blank)* | Blank gives `gal_<resource group>`; hyphens become underscores |
+| Resource group | `rg-fds-prod` | Create new, or an existing one |
+| Region | `East US` | The free Ebdsv5 vCPU quota shows below once picked |
+| Storage account name | `nds10192026` | The VHD warehouse |
+| SAS token | `sv=2026-02-06&ss=b&srt=co&sp=rl&se=...&sig=...` | Read and list on the `emp` container |
 
 ### Networking
 
 | Form field | Example | Notes |
 |---|---|---|
-| Virtual network | Create new: `vnet-fileds`, `10.30.0.0/16` | Or an existing network in the region |
-| Management subnet | `snet-mgmt`, `10.30.0.0/24` | /26 or larger |
-| Data subnet | `snet-data`, `10.30.1.0/24` | /26 or larger |
+| Virtual network | Create new: `fds1-vnet`, `10.30.0.0/16` | Or an existing network in the region, with its existing subnets |
+| Management subnet | `fds1-mgmt`, `10.30.0.0/24` | /26 or larger |
+| Data subnet | `fds1-data`, `10.30.1.0/24` | /26 or larger |
 | Allow access from | `203.0.113.7` | Your public IP, a CIDR, or several separated by commas. New network only |
 | Give EMP a public IP address | ticked | Untick when EMP is reached over VPN or peering |
 | EMP private IP | *(blank)* | Blank gives host 50 of the management subnet |
 
+### EMP virtual machine
+
+| Form field | Example | Notes |
+|---|---|---|
+| Size | `Standard_B2ms` | 2 vCPUs and 8 GiB are enough |
+| Username | `fdsadmin` | The Linux user. EMP's own sign-in is made in the browser |
+| Authentication type | Password or SSH public key | With a key, password login is off |
+
+### Names
+
+For deployment name `fds1`:
+
+| Resource | Name |
+|---|---|
+| EMP VM, NIC, public IP, OS disk | `fds1-emp`, `fds1-emp-nic`, `fds1-emp-pip`, `fds1-emp-os` |
+| Virtual network and subnets (new) | `fds1-vnet`, `fds1-mgmt`, `fds1-data` (defaults, can be changed in the form) |
+| NSGs (new network only) | `fds1-mgmt-nsg`, `fds1-data-nsg` |
+| Compute gallery | `fds1_gal`, image definition `emp` |
+| Staging storage account | `fds1st` plus a hash of the resource group |
+| Deployment scripts | `fds1-stage-emp-vhd`, `fds1-unstage-emp-vhd` |
+
+The EMP image is always the newest `emp-<version>.vhd` in the warehouse's
+`emp` container.
+
 ### NSG rules on a new network
 
-The NSGs are named `nsg-<vnet>-<subnet>`, e.g. `nsg-vnet-fileds-snet-mgmt`.
 "Inside" is the network's address space.
 
 | NSG | Priority | Rule | From | Ports |
 |---|---|---|---|---|
-| management | 100 | admin-ssh-https | inside | TCP 22, 443 |
-| management | 110 | admin_any_in | Allow access from | any |
-| management | 115 | cluster-store-and-relay | management subnet | TCP 2379-2380, 443 |
-| management | 120 | mgmt-name-dns | inside | 53 |
+| mgmt | 100 | admin-ssh-https | inside | TCP 22, 443 |
+| mgmt | 110 | admin_any_in | Allow access from | any |
+| mgmt | 115 | cluster-store-and-relay | management subnet | TCP 2379-2380, 443 |
+| mgmt | 120 | mgmt-name-dns | inside | 53 |
 | data | 100 | smb-nfs | inside | TCP 2049, 445 |
 | data | 105 | nes-peer-rpc | data subnet | TCP 7400 |
 | data | 110 | admin_any_in | Allow access from | any |
@@ -179,7 +192,7 @@ The deployment's **Outputs** has `empUrl`, `nextSteps` and
    on the resource group EMP deploys clusters into. In Cloud Shell:
 
    ```bash
-   az ad sp create-for-rbac --name sp-emp-rg-fds-prod --role Contributor \
+   az ad sp create-for-rbac --name fds1-emp-sp --role Contributor \
      --scopes /subscriptions/<subscription id>/resourceGroups/rg-fds-prod
    ```
 

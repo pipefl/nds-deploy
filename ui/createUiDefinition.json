@@ -5,7 +5,7 @@
   "parameters": {
     "config": {
       "basics": {
-        "description": "EMP deploys and manages FileDS and BlockDS clusters. This creates the network for them, a compute gallery with the EMP image taken from the VHD warehouse, and the EMP virtual machine.",
+        "description": "EMP deploys and manages FileDS and BlockDS clusters. This creates the network for them, a compute gallery with the EMP image taken from the VHD warehouse, and the EMP virtual machine. Every new resource is named after the deployment name.",
         "location": {
           "label": "Region",
           "toolTip": "Pick a region with Premium SSD v2 if the clusters go in the same region. FileDS and BlockDS data disks are Premium SSD v2 only."
@@ -18,7 +18,47 @@
         "type": "Microsoft.Common.TextBlock",
         "visible": true,
         "options": {
-          "text": "Template version: 20261028200000"
+          "text": "Template version: 20261028210000"
+        }
+      },
+      {
+        "name": "deploymentName",
+        "type": "Microsoft.Common.TextBox",
+        "label": "Deployment name",
+        "toolTip": "Prefix for every resource this creates: fds1 gives fds1-emp, fds1-vnet, fds1-mgmt, fds1-data, fds1-mgmt-nsg, fds1_gal.",
+        "constraints": {
+          "required": true,
+          "regex": "^[a-z][a-z0-9-]{1,10}[a-z0-9]$",
+          "validationMessage": "3-12 lowercase letters, numbers and hyphens, starting with a letter."
+        }
+      },
+      {
+        "name": "warehouseAccount",
+        "type": "Microsoft.Common.TextBox",
+        "label": "Storage account name",
+        "defaultValue": "nds10192026",
+        "toolTip": "The VHD warehouse. The newest emp-<version>.vhd in its emp container is deployed.",
+        "constraints": {
+          "required": true,
+          "regex": "^[a-z0-9]{3,24}$",
+          "validationMessage": "3-24 lowercase letters and numbers."
+        }
+      },
+      {
+        "name": "warehouseSas",
+        "type": "Microsoft.Common.PasswordBox",
+        "label": {
+          "password": "SAS token",
+          "confirmPassword": "Confirm SAS token"
+        },
+        "toolTip": "A SAS with read and list on the emp container, with or without the leading ?. Used during the deployment only.",
+        "options": {
+          "hideConfirmation": true
+        },
+        "constraints": {
+          "required": true,
+          "regex": "^(?=.{30,}$)\\??(.*&)?sig=.+$",
+          "validationMessage": "Paste the SAS token: the query string with sv=, sp= and sig=."
         }
       },
       {
@@ -35,24 +75,123 @@
         "visible": "[and(not(empty(location())), not(empty(basics('usages'))))]",
         "options": {
           "icon": "Info",
-          "text": "[concat('Ebdsv5 vCPU quota in ', location(), ': ', string(sub(first(filter(basics('usages').value, (u) => equals(u.name.value, 'standardEBDSv5Family'))).limit, first(filter(basics('usages').value, (u) => equals(u.name.value, 'standardEBDSv5Family'))).currentValue)), ' free of ', string(first(filter(basics('usages').value, (u) => equals(u.name.value, 'standardEBDSv5Family'))).limit), '. A cluster of three E8bds_v5 controllers needs 24. Nothing here uses it yet; it is for the clusters EMP deploys later.')]"
+          "text": "[concat('Ebdsv5 vCPU quota in ', location(), ': ', string(sub(first(filter(basics('usages').value, (u) => equals(u.name.value, 'standardEBDSv5Family'))).limit, first(filter(basics('usages').value, (u) => equals(u.name.value, 'standardEBDSv5Family'))).currentValue)), ' free of ', string(first(filter(basics('usages').value, (u) => equals(u.name.value, 'standardEBDSv5Family'))).limit), '. A cluster of three E8bds_v5 controllers needs 24. EMP itself does not use it.')]"
         }
+      }
+    ],
+    "steps": [
+      {
+        "name": "network",
+        "label": "Networking",
+        "elements": [
+          {
+            "name": "vnet",
+            "type": "Microsoft.Network.VirtualNetworkCombo",
+            "label": {
+              "virtualNetwork": "Virtual network",
+              "subnets": "Subnets"
+            },
+            "toolTip": {
+              "virtualNetwork": "A new network, or one that already exists in this region.",
+              "subnets": "Management (EMP and the controllers' management NICs) and data (where clients mount and log in)."
+            },
+            "defaultValue": {
+              "name": "[concat(basics('deploymentName'), '-vnet')]",
+              "addressPrefixSize": "/16"
+            },
+            "constraints": {
+              "minAddressPrefixSize": "/24"
+            },
+            "options": {
+              "hideExisting": false
+            },
+            "subnets": {
+              "mgmt": {
+                "label": "Management subnet",
+                "defaultValue": {
+                  "name": "[concat(basics('deploymentName'), '-mgmt')]",
+                  "addressPrefixSize": "/24"
+                },
+                "constraints": {
+                  "minAddressPrefixSize": "/26",
+                  "required": true
+                }
+              },
+              "data": {
+                "label": "Data subnet",
+                "defaultValue": {
+                  "name": "[concat(basics('deploymentName'), '-data')]",
+                  "addressPrefixSize": "/24"
+                },
+                "constraints": {
+                  "minAddressPrefixSize": "/26",
+                  "required": true
+                }
+              }
+            }
+          },
+          {
+            "name": "newVnetInfo",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": "[equals(steps('network').vnet.newOrExisting, 'new')]",
+            "options": {
+              "icon": "Info",
+              "text": "[concat('Each subnet gets its own NSG on the subnet (', basics('deploymentName'), '-mgmt-nsg and ', basics('deploymentName'), '-data-nsg), none on NICs. Inside the network: SSH and HTTPS to management, NFS, SMB and iSCSI to data, DNS on both, and the cluster ports. From outside, only the addresses below get in.')]"
+            }
+          },
+          {
+            "name": "existingVnetInfo",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": "[equals(steps('network').vnet.newOrExisting, 'existing')]",
+            "options": {
+              "icon": "Warning",
+              "text": "An existing network is used as it is: its subnets and their NSGs are left alone. EMP needs HTTPS (443) in from wherever you open it, and SSH (22) and 443 to the controllers on the management subnet. Whoever deploys needs join rights on the subnet."
+            }
+          },
+          {
+            "name": "adminSource",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Allow access from",
+            "defaultValue": "",
+            "toolTip": "Your public IP address (or a CIDR, or several separated by commas). Allowed in on every port to both subnets, as rule admin_any_in.",
+            "visible": "[equals(steps('network').vnet.newOrExisting, 'new')]",
+            "constraints": {
+              "required": "[steps('network').publicIp]",
+              "regex": "^$|^\\s*\\d{1,3}(\\.\\d{1,3}){3}(/\\d{1,2})?(\\s*,\\s*\\d{1,3}(\\.\\d{1,3}){3}(/\\d{1,2})?)*\\s*$",
+              "validationMessage": "IPv4 addresses or CIDRs, separated by commas."
+            }
+          },
+          {
+            "name": "publicIp",
+            "type": "Microsoft.Common.CheckBox",
+            "label": "Give EMP a public IP address",
+            "defaultValue": true,
+            "toolTip": "Untick when EMP is reached over a VPN or peering only."
+          },
+          {
+            "name": "empPrivateIp",
+            "type": "Microsoft.Common.TextBox",
+            "label": "EMP private IP",
+            "defaultValue": "",
+            "toolTip": "Leave blank for host 50 of the management subnet (e.g. 10.30.0.50).",
+            "constraints": {
+              "required": false,
+              "regex": "^$|^\\d{1,3}(\\.\\d{1,3}){3}$",
+              "validationMessage": "An IPv4 address in the management subnet."
+            }
+          }
+        ]
       },
       {
         "name": "vm",
-        "type": "Microsoft.Common.Section",
         "label": "EMP virtual machine",
         "elements": [
           {
-            "name": "empName",
-            "type": "Microsoft.Common.TextBox",
-            "label": "Virtual machine name",
-            "defaultValue": "emp01",
-            "toolTip": "Also the host name. The public IP and NIC are named after it.",
-            "constraints": {
-              "required": true,
-              "regex": "^[a-zA-Z][a-zA-Z0-9-]{0,13}[a-zA-Z0-9]$",
-              "validationMessage": "2-15 letters, numbers and hyphens, starting with a letter."
+            "name": "vmName",
+            "type": "Microsoft.Common.TextBlock",
+            "visible": true,
+            "options": {
+              "text": "[concat('The VM is ', basics('deploymentName'), '-emp, with ', basics('deploymentName'), '-emp-nic, ', basics('deploymentName'), '-emp-pip and ', basics('deploymentName'), '-emp-os. The newest EMP image goes in the gallery ', replace(basics('deploymentName'), '-', '_'), '_gal.')]"
             }
           },
           {
@@ -68,14 +207,7 @@
             "osPlatform": "Linux",
             "count": 1,
             "visible": true
-          }
-        ]
-      },
-      {
-        "name": "admin",
-        "type": "Microsoft.Common.Section",
-        "label": "Administrator account",
-        "elements": [
+          },
           {
             "name": "adminUsername",
             "type": "Microsoft.Compute.UserNameTextBox",
@@ -113,202 +245,15 @@
         ]
       }
     ],
-    "steps": [
-      {
-        "name": "image",
-        "label": "EMP image",
-        "elements": [
-          {
-            "name": "imageInfo",
-            "type": "Microsoft.Common.InfoBox",
-            "visible": true,
-            "options": {
-              "icon": "Info",
-              "text": "The EMP image comes from the VHD warehouse: the newest emp-<version>.vhd (or the version you name) is copied into a small staging account in this resource group, published to a compute gallery here, and the staged copy is deleted. The copy and the image version take 10 to 20 minutes. Ask for a SAS with read and list on the container."
-            }
-          },
-          {
-            "name": "warehouseAccount",
-            "type": "Microsoft.Common.TextBox",
-            "label": "Warehouse storage account",
-            "defaultValue": "nds10192026",
-            "toolTip": "The storage account holding the VHDs.",
-            "constraints": {
-              "required": true,
-              "regex": "^[a-z0-9]{3,24}$",
-              "validationMessage": "3-24 lowercase letters and numbers."
-            }
-          },
-          {
-            "name": "warehouseContainer",
-            "type": "Microsoft.Common.TextBox",
-            "label": "Container",
-            "defaultValue": "emp",
-            "toolTip": "The container with the emp-<version>.vhd blobs.",
-            "constraints": {
-              "required": true,
-              "regex": "^[a-z0-9](?!.*--)[a-z0-9-]{1,61}[a-z0-9]$",
-              "validationMessage": "3-63 lowercase letters, numbers and single hyphens."
-            }
-          },
-          {
-            "name": "warehouseSas",
-            "type": "Microsoft.Common.PasswordBox",
-            "label": {
-              "password": "SAS token",
-              "confirmPassword": "Confirm SAS token"
-            },
-            "toolTip": "A SAS with read and list on the container; with or without the leading ?. It is used during the deployment only.",
-            "options": {
-              "hideConfirmation": true
-            },
-            "constraints": {
-              "required": true,
-              "regex": "^(?=.{30,}$)\\??(.*&)?sig=.+$",
-              "validationMessage": "Paste the SAS token: the query string with sv=, sp= and sig=."
-            }
-          },
-          {
-            "name": "empVersion",
-            "type": "Microsoft.Common.TextBox",
-            "label": "EMP version",
-            "defaultValue": "latest",
-            "toolTip": "latest takes the newest VHD in the container. Or name one, e.g. 0.20.0. EMP updates itself from its container registry later, so latest is usually right.",
-            "constraints": {
-              "required": true,
-              "regex": "^(latest|[0-9]+\\.[0-9]+\\.[0-9]+)$",
-              "validationMessage": "latest, or a version like 0.20.0."
-            }
-          },
-          {
-            "name": "galleryName",
-            "type": "Microsoft.Common.TextBox",
-            "label": "Compute gallery name",
-            "defaultValue": "",
-            "toolTip": "Leave blank for gal_<resource group>. Gallery names are unique in a subscription. EMP adds the controller images to the same gallery later.",
-            "constraints": {
-              "required": false,
-              "regex": "^$|^[A-Za-z0-9][A-Za-z0-9_.]{0,78}[A-Za-z0-9]$",
-              "validationMessage": "Letters, numbers, underscores and periods; no hyphens."
-            }
-          }
-        ]
-      },
-      {
-        "name": "network",
-        "label": "Networking",
-        "elements": [
-          {
-            "name": "vnet",
-            "type": "Microsoft.Network.VirtualNetworkCombo",
-            "label": {
-              "virtualNetwork": "Virtual network",
-              "subnets": "Subnets"
-            },
-            "toolTip": {
-              "virtualNetwork": "A new network, or one that already exists in this region.",
-              "subnets": "Two subnets: management (EMP and the controllers' management NICs) and data (where clients mount and log in)."
-            },
-            "defaultValue": {
-              "name": "vnet-fileds",
-              "addressPrefixSize": "/16"
-            },
-            "constraints": {
-              "minAddressPrefixSize": "/24"
-            },
-            "options": {
-              "hideExisting": false
-            },
-            "subnets": {
-              "mgmt": {
-                "label": "Management subnet",
-                "defaultValue": {
-                  "name": "snet-mgmt",
-                  "addressPrefixSize": "/24"
-                },
-                "constraints": {
-                  "minAddressPrefixSize": "/26",
-                  "required": true
-                }
-              },
-              "data": {
-                "label": "Data subnet",
-                "defaultValue": {
-                  "name": "snet-data",
-                  "addressPrefixSize": "/24"
-                },
-                "constraints": {
-                  "minAddressPrefixSize": "/26",
-                  "required": true
-                }
-              }
-            }
-          },
-          {
-            "name": "newVnetInfo",
-            "type": "Microsoft.Common.InfoBox",
-            "visible": "[equals(steps('network').vnet.newOrExisting, 'new')]",
-            "options": {
-              "icon": "Info",
-              "text": "Each subnet gets its own NSG, attached to the subnet (none on NICs). Inside the network: SSH and HTTPS to management, NFS, SMB and iSCSI to data, DNS on both, and the cluster's own ports. From outside, only the addresses below get in."
-            }
-          },
-          {
-            "name": "existingVnetInfo",
-            "type": "Microsoft.Common.InfoBox",
-            "visible": "[equals(steps('network').vnet.newOrExisting, 'existing')]",
-            "options": {
-              "icon": "Warning",
-              "text": "An existing network is used as it is: its subnets and their NSGs are left alone. EMP needs HTTPS (443) in from wherever you open it, and SSH (22) and 443 to the controllers on the management subnet. Whoever deploys needs join rights on the subnet."
-            }
-          },
-          {
-            "name": "adminSource",
-            "type": "Microsoft.Common.TextBox",
-            "label": "Allow access from",
-            "defaultValue": "",
-            "toolTip": "Your public IP address (or a CIDR, or several separated by commas). Allowed in on every port to both subnets, as rule admin_any_in. Search the web for 'what is my IP' if you do not know it.",
-            "visible": "[equals(steps('network').vnet.newOrExisting, 'new')]",
-            "constraints": {
-              "required": "[steps('network').publicIp]",
-              "regex": "^$|^\\s*\\d{1,3}(\\.\\d{1,3}){3}(/\\d{1,2})?(\\s*,\\s*\\d{1,3}(\\.\\d{1,3}){3}(/\\d{1,2})?)*\\s*$",
-              "validationMessage": "IPv4 addresses or CIDRs, separated by commas."
-            }
-          },
-          {
-            "name": "publicIp",
-            "type": "Microsoft.Common.CheckBox",
-            "label": "Give EMP a public IP address",
-            "defaultValue": true,
-            "toolTip": "Untick when EMP is reached over a VPN or peering only."
-          },
-          {
-            "name": "empPrivateIp",
-            "type": "Microsoft.Common.TextBox",
-            "label": "EMP private IP",
-            "defaultValue": "",
-            "toolTip": "Leave blank for host 50 of the management subnet (e.g. 10.30.0.50).",
-            "constraints": {
-              "required": false,
-              "regex": "^$|^\\d{1,3}(\\.\\d{1,3}){3}$",
-              "validationMessage": "An IPv4 address in the management subnet."
-            }
-          }
-        ]
-      }
-    ],
     "outputs": {
+      "deploymentName": "[basics('deploymentName')]",
       "location": "[location()]",
-      "empName": "[basics('vm').empName]",
-      "empSize": "[basics('vm').empSize]",
-      "adminUsername": "[basics('admin').adminUsername]",
-      "authenticationType": "[basics('admin').credentials.authenticationType]",
-      "adminPasswordOrKey": "[if(equals(basics('admin').credentials.authenticationType, 'password'), basics('admin').credentials.password, basics('admin').credentials.sshPublicKey)]",
-      "warehouseAccount": "[steps('image').warehouseAccount]",
-      "warehouseContainer": "[steps('image').warehouseContainer]",
-      "warehouseSas": "[steps('image').warehouseSas]",
-      "empVersion": "[steps('image').empVersion]",
-      "galleryName": "[steps('image').galleryName]",
+      "warehouseAccount": "[basics('warehouseAccount')]",
+      "warehouseSas": "[basics('warehouseSas')]",
+      "empSize": "[steps('vm').empSize]",
+      "adminUsername": "[steps('vm').adminUsername]",
+      "authenticationType": "[steps('vm').credentials.authenticationType]",
+      "adminPasswordOrKey": "[if(equals(steps('vm').credentials.authenticationType, 'password'), steps('vm').credentials.password, steps('vm').credentials.sshPublicKey)]",
       "vnetNewOrExisting": "[steps('network').vnet.newOrExisting]",
       "vnetName": "[steps('network').vnet.name]",
       "vnetResourceGroup": "[steps('network').vnet.resourceGroup]",

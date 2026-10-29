@@ -18,6 +18,10 @@ resource ver 'Microsoft.Compute/galleries/images/versions@2026-03-03' = {
       replicaCount: 1
       storageAccountType: 'Standard_LRS'
     }
+    // newer API versions turn this on by default, and then the version cannot be deleted
+    safetyProfile: {
+      blockDeletionBeforeEndOfLife: false
+    }
     storageProfile: {
       osDiskImage: {
         source: {

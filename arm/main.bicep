@@ -1,6 +1,12 @@
 // EMP from the warehouse: a network, a compute gallery with the EMP image staged from the
-// distribution storage account, and the EMP VM. mainTemplate.json is built from this file:
+// distribution storage account, and the EMP VM. Every new resource is named after the
+// deployment name. mainTemplate.json is built from this file:
 //   az bicep build --file arm/main.bicep --outfile arm/mainTemplate.json
+
+@description('Deployment name: the prefix for every resource this creates, e.g. fds1 gives fds1-emp, fds1-vnet, fds1_gal.')
+@minLength(3)
+@maxLength(12)
+param deploymentName string
 
 @description('Azure region for everything in this deployment.')
 param location string = resourceGroup().location
@@ -10,10 +16,21 @@ param tags object = {
   workload: 'fileds'
 }
 
-// ── EMP VM ──
-@description('Name of the EMP virtual machine.')
-param empName string = 'emp01'
+// ── warehouse ──
+@description('Storage account holding the EMP VHDs.')
+param warehouseAccount string = 'nds10192026'
 
+@description('Container with emp-<version>.vhd blobs.')
+param warehouseContainer string = 'emp'
+
+@description('SAS with read and list on the container.')
+@secure()
+param warehouseSas string
+
+@description('EMP version to deploy, x.y.z, or latest for the newest VHD in the container.')
+param empVersion string = 'latest'
+
+// ── EMP VM ──
 @description('Size of the EMP virtual machine. EMP and its collector fit in 2 vCPUs and 8 GiB.')
 param empSize string = 'Standard_B2ms'
 
@@ -46,7 +63,7 @@ param empPrivateIp string = ''
 param vnetNewOrExisting string = 'new'
 
 @description('Virtual network name.')
-param vnetName string = 'vnet-fileds'
+param vnetName string = '${deploymentName}-vnet'
 
 @description('Resource group of an existing virtual network.')
 param vnetResourceGroup string = resourceGroup().name
@@ -57,13 +74,13 @@ param vnetAddressPrefixes array = [
 ]
 
 @description('Management subnet: EMP and the controllers\' management NICs.')
-param mgmtSubnetName string = 'snet-mgmt'
+param mgmtSubnetName string = '${deploymentName}-mgmt'
 
 @description('Address prefix of the management subnet.')
 param mgmtSubnetPrefix string = '10.30.0.0/24'
 
 @description('Data subnet: the controllers\' data NICs, where clients mount and log in.')
-param dataSubnetName string = 'snet-data'
+param dataSubnetName string = '${deploymentName}-data'
 
 @description('Address prefix of the data subnet.')
 param dataSubnetPrefix string = '10.30.1.0/24'
@@ -71,28 +88,13 @@ param dataSubnetPrefix string = '10.30.1.0/24'
 @description('Addresses or CIDRs allowed in on every port (rule admin_any_in on both NSGs). New network only.')
 param adminSourceAddresses array = []
 
-// ── image ──
-@description('Storage account holding the EMP VHDs.')
-param warehouseAccount string = 'nds10192026'
-
-@description('Container with emp-<version>.vhd blobs.')
-param warehouseContainer string = 'emp'
-
-@description('SAS with read and list on the container.')
-@secure()
-param warehouseSas string
-
-@description('EMP version to deploy, x.y.z, or latest for the newest VHD in the container.')
-param empVersion string = 'latest'
-
-@description('Compute gallery for the EMP image (and later the controller images). Empty: gal_<resource group>.')
-param galleryName string = ''
-
-var gallery = empty(galleryName) ? 'gal_${replace(replace(toLower(resourceGroup().name), '-', '_'), '(', '')}' : galleryName
+var dn = toLower(deploymentName)
+var empName = '${dn}-emp'
+var galleryName = '${replace(dn, '-', '_')}_gal'
+var stagingName = take('${replace(dn, '-', '')}st${uniqueString(resourceGroup().id)}', 24)
 var newVnet = vnetNewOrExisting == 'new'
 var mgmtSubnetId = resourceId(newVnet ? resourceGroup().name : vnetResourceGroup, 'Microsoft.Network/virtualNetworks/subnets', vnetName, mgmtSubnetName)
 var privateIp = empty(empPrivateIp) ? cidrHost(mgmtSubnetPrefix, 49) : empPrivateIp
-var stagingName = 'stvhd${take(uniqueString(resourceGroup().id), 13)}'
 
 // ── NSGs: same rules as the lab; inside means this vnet ──
 var adminRule = {
@@ -125,7 +127,7 @@ func rule(name string, priority int, protocol string, sources array, ports array
 }
 
 resource mgmtNsg 'Microsoft.Network/networkSecurityGroups@2026-07-01' = if (newVnet) {
-  name: 'nsg-${vnetName}-${mgmtSubnetName}'
+  name: '${dn}-mgmt-nsg'
   location: location
   tags: tags
   properties: {
@@ -138,7 +140,7 @@ resource mgmtNsg 'Microsoft.Network/networkSecurityGroups@2026-07-01' = if (newV
 }
 
 resource dataNsg 'Microsoft.Network/networkSecurityGroups@2026-07-01' = if (newVnet) {
-  name: 'nsg-${vnetName}-${dataSubnetName}'
+  name: '${dn}-data-nsg'
   location: location
   tags: tags
   properties: {
@@ -200,7 +202,7 @@ resource staging 'Microsoft.Storage/storageAccounts@2026-09-01' = {
 }
 
 resource stage 'Microsoft.Resources/deploymentScripts@2026-04-01' = {
-  name: 'stage-emp-vhd'
+  name: '${dn}-stage-emp-vhd'
   location: location
   tags: tags
   kind: 'AzureCLI'
@@ -227,7 +229,7 @@ resource stage 'Microsoft.Resources/deploymentScripts@2026-04-01' = {
 }
 
 resource gal 'Microsoft.Compute/galleries@2026-03-03' = {
-  name: gallery
+  name: galleryName
   location: location
   tags: tags
   properties: {
@@ -258,7 +260,7 @@ resource empDef 'Microsoft.Compute/galleries/images@2026-03-03' = {
 
 // the version's name is only known once the script has looked in the warehouse
 module empImage 'image-version.bicep' = {
-  name: 'emp-image-version'
+  name: '${dn}-emp-image'
   params: {
     location: location
     galleryName: gal.name
@@ -275,7 +277,7 @@ module empImage 'image-version.bicep' = {
 
 // the staged copy has done its job
 resource unstage 'Microsoft.Resources/deploymentScripts@2026-04-01' = {
-  name: 'unstage-emp-vhd'
+  name: '${dn}-unstage-emp-vhd'
   location: location
   tags: tags
   kind: 'AzureCLI'
@@ -380,5 +382,5 @@ output empUrl string = 'https://${empAddress}/'
 output empPrivateIp string = privateIp
 output galleryName string = gal.name
 output empImageVersion string = stage.properties.outputs.version
-output servicePrincipalCommand string = 'az ad sp create-for-rbac --name sp-emp-${resourceGroup().name} --role Contributor --scopes ${resourceGroup().id}'
+output servicePrincipalCommand string = 'az ad sp create-for-rbac --name ${dn}-emp-sp --role Contributor --scopes ${resourceGroup().id}'
 output nextSteps string = 'Open https://${empAddress}/ (EMP needs a few minutes after first boot) and create the EMP admin. Then Settings > Azure connection: a service principal with Contributor on ${resourceGroup().name} (servicePrincipalCommand). Then Settings > Gallery > New gallery from VHDs: account ${warehouseAccount}, container fileds (or blockds), gallery ${gal.name} in ${resourceGroup().name}.'
