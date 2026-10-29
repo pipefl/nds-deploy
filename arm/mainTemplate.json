@@ -1,0 +1,694 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "languageVersion": "2.0",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.48.1.52935",
+      "templateHash": "9075673717501282873"
+    }
+  },
+  "functions": [
+    {
+      "namespace": "__bicep",
+      "members": {
+        "rule": {
+          "parameters": [
+            {
+              "type": "string",
+              "name": "name"
+            },
+            {
+              "type": "int",
+              "name": "priority"
+            },
+            {
+              "type": "string",
+              "name": "protocol"
+            },
+            {
+              "type": "array",
+              "name": "sources"
+            },
+            {
+              "type": "array",
+              "name": "ports"
+            }
+          ],
+          "output": {
+            "type": "object",
+            "value": {
+              "name": "[parameters('name')]",
+              "properties": {
+                "priority": "[parameters('priority')]",
+                "direction": "Inbound",
+                "access": "Allow",
+                "protocol": "[parameters('protocol')]",
+                "sourceAddressPrefixes": "[parameters('sources')]",
+                "sourcePortRange": "*",
+                "destinationAddressPrefix": "*",
+                "destinationPortRanges": "[parameters('ports')]"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Azure region for everything in this deployment."
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {
+        "workload": "fileds"
+      },
+      "metadata": {
+        "description": "Tags applied to every resource this template creates."
+      }
+    },
+    "empName": {
+      "type": "string",
+      "defaultValue": "emp01",
+      "metadata": {
+        "description": "Name of the EMP virtual machine."
+      }
+    },
+    "empSize": {
+      "type": "string",
+      "defaultValue": "Standard_B2ms",
+      "metadata": {
+        "description": "Size of the EMP virtual machine. EMP and its collector fit in 2 vCPUs and 8 GiB."
+      }
+    },
+    "adminUsername": {
+      "type": "string",
+      "defaultValue": "fdsadmin",
+      "metadata": {
+        "description": "Administrator user on the EMP VM."
+      }
+    },
+    "authenticationType": {
+      "type": "string",
+      "defaultValue": "password",
+      "allowedValues": [
+        "password",
+        "sshPublicKey"
+      ],
+      "metadata": {
+        "description": "password or sshPublicKey."
+      }
+    },
+    "adminPasswordOrKey": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Password or SSH public key for the administrator."
+      }
+    },
+    "publicIp": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Give EMP a public IP address."
+      }
+    },
+    "empPrivateIp": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Private IP for EMP on the management subnet. Empty: host 50 of the subnet."
+      }
+    },
+    "vnetNewOrExisting": {
+      "type": "string",
+      "defaultValue": "new",
+      "allowedValues": [
+        "new",
+        "existing"
+      ],
+      "metadata": {
+        "description": "new creates the virtual network and both subnets with an NSG on each; existing uses them as they are."
+      }
+    },
+    "vnetName": {
+      "type": "string",
+      "defaultValue": "vnet-fileds",
+      "metadata": {
+        "description": "Virtual network name."
+      }
+    },
+    "vnetResourceGroup": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().name]",
+      "metadata": {
+        "description": "Resource group of an existing virtual network."
+      }
+    },
+    "vnetAddressPrefixes": {
+      "type": "array",
+      "defaultValue": [
+        "10.30.0.0/16"
+      ],
+      "metadata": {
+        "description": "Address space of a new virtual network."
+      }
+    },
+    "mgmtSubnetName": {
+      "type": "string",
+      "defaultValue": "snet-mgmt",
+      "metadata": {
+        "description": "Management subnet: EMP and the controllers' management NICs."
+      }
+    },
+    "mgmtSubnetPrefix": {
+      "type": "string",
+      "defaultValue": "10.30.0.0/24",
+      "metadata": {
+        "description": "Address prefix of the management subnet."
+      }
+    },
+    "dataSubnetName": {
+      "type": "string",
+      "defaultValue": "snet-data",
+      "metadata": {
+        "description": "Data subnet: the controllers' data NICs, where clients mount and log in."
+      }
+    },
+    "dataSubnetPrefix": {
+      "type": "string",
+      "defaultValue": "10.30.1.0/24",
+      "metadata": {
+        "description": "Address prefix of the data subnet."
+      }
+    },
+    "adminSourceAddresses": {
+      "type": "array",
+      "defaultValue": [],
+      "metadata": {
+        "description": "Addresses or CIDRs allowed in on every port (rule admin_any_in on both NSGs). New network only."
+      }
+    },
+    "warehouseAccount": {
+      "type": "string",
+      "defaultValue": "nds10192026",
+      "metadata": {
+        "description": "Storage account holding the EMP VHDs."
+      }
+    },
+    "warehouseContainer": {
+      "type": "string",
+      "defaultValue": "emp",
+      "metadata": {
+        "description": "Container with emp-<version>.vhd blobs."
+      }
+    },
+    "warehouseSas": {
+      "type": "securestring",
+      "metadata": {
+        "description": "SAS with read and list on the container."
+      }
+    },
+    "empVersion": {
+      "type": "string",
+      "defaultValue": "latest",
+      "metadata": {
+        "description": "EMP version to deploy, x.y.z, or latest for the newest VHD in the container."
+      }
+    },
+    "galleryName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Compute gallery for the EMP image (and later the controller images). Empty: gal_<resource group>."
+      }
+    }
+  },
+  "variables": {
+    "$fxv#0": "#!/bin/bash\n# Runs as a deployment script (AzureCLI). Copies one <definition>-<version>.vhd from the\n# warehouse into the staging account, server side. Azure builds gallery images only from a\n# VHD in the same subscription, so the image version is made from the staged copy.\n#\n# in:  DEFINITION, VERSION (latest or x.y.z), WH_ACCOUNT, WH_CONTAINER, WH_SAS, ST_ACCOUNT, ST_KEY, STORAGE_SUFFIX\n# out: version, blob, uri, nes, stack, built\nset -euo pipefail\nSAS=\"${WH_SAS#\\?}\"\n\nif [ \"$VERSION\" = \"latest\" ]; then\n  BLOB=$(az storage blob list --account-name \"$WH_ACCOUNT\" --container-name \"$WH_CONTAINER\" --sas-token \"$SAS\" \\\n           --query \"[].name\" -o tsv | grep -E \"^${DEFINITION}-[0-9]+\\.[0-9]+\\.[0-9]+\\.vhd$\" | sort -V | tail -1 || true)\n  if [ -z \"$BLOB\" ]; then\n    echo \"No ${DEFINITION}-<version>.vhd in $WH_ACCOUNT/$WH_CONTAINER. The SAS needs read and list on that container.\" >&2\n    exit 1\n  fi\nelse\n  BLOB=\"${DEFINITION}-${VERSION}.vhd\"\nfi\nVER=\"${BLOB#\"${DEFINITION}\"-}\"; VER=\"${VER%.vhd}\"\necho \"using $BLOB\"\n\nst() { az storage blob \"$@\" --account-name \"$ST_ACCOUNT\" --account-key \"$ST_KEY\"; }\n\ncopy() { st show --container-name vhd --name \"$BLOB\" --query \"properties.copy.$1\" -o tsv 2>/dev/null || true; }\n\nstate=$(copy status)\ncase \"$state\" in\n  success) echo \"$BLOB is already staged\" ;;\n  pending) echo \"$BLOB is still being copied by an earlier run\" ;;\n  *)\n    echo \"copying $BLOB into $ST_ACCOUNT (server side)\"\n    st copy start --destination-blob \"$BLOB\" --destination-container vhd \\\n       --source-uri \"https://$WH_ACCOUNT.blob.$STORAGE_SUFFIX/$WH_CONTAINER/$BLOB?$SAS\" -o none\n    state=pending ;;\nesac\nwhile [ \"$state\" = \"pending\" ]; do\n  sleep 15\n  state=$(copy status)\n  echo \"  $state $(copy progress)\"\ndone\nif [ \"$state\" != \"success\" ]; then\n  echo \"copy of $BLOB ended ${state:-with no copy state}\" >&2\n  exit 1\nfi\n\n# the warehouse blob's metadata (nes, stack, built) becomes the image version's tags\nmd=$(az storage blob metadata show --account-name \"$WH_ACCOUNT\" --container-name \"$WH_CONTAINER\" --name \"$BLOB\" --sas-token \"$SAS\" -o json 2>/dev/null || echo '{}')\njq -n --arg version \"$VER\" --arg blob \"$BLOB\" --arg uri \"https://$ST_ACCOUNT.blob.$STORAGE_SUFFIX/vhd/$BLOB\" --argjson md \"$md\" \\\n  '{version: $version, blob: $blob, uri: $uri, nes: ($md.nes // \"\"), stack: ($md.stack // \"\"), built: ($md.built // \"\")}' > \"$AZ_SCRIPTS_OUTPUT_PATH\"\ncat \"$AZ_SCRIPTS_OUTPUT_PATH\"\n",
+    "gallery": "[if(empty(parameters('galleryName')), format('gal_{0}', replace(replace(toLower(resourceGroup().name), '-', '_'), '(', '')), parameters('galleryName'))]",
+    "newVnet": "[equals(parameters('vnetNewOrExisting'), 'new')]",
+    "mgmtSubnetId": "[resourceId(if(variables('newVnet'), resourceGroup().name, parameters('vnetResourceGroup')), 'Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('mgmtSubnetName'))]",
+    "privateIp": "[if(empty(parameters('empPrivateIp')), cidrHost(parameters('mgmtSubnetPrefix'), 49), parameters('empPrivateIp'))]",
+    "stagingName": "[format('stvhd{0}', take(uniqueString(resourceGroup().id), 13))]",
+    "adminRule": {
+      "name": "admin_any_in",
+      "properties": {
+        "priority": 110,
+        "direction": "Inbound",
+        "access": "Allow",
+        "protocol": "*",
+        "sourceAddressPrefixes": "[parameters('adminSourceAddresses')]",
+        "sourcePortRange": "*",
+        "destinationAddressPrefix": "*",
+        "destinationPortRange": "*"
+      }
+    },
+    "adminRules": "[if(empty(parameters('adminSourceAddresses')), createArray(), createArray(variables('adminRule')))]"
+  },
+  "resources": {
+    "staging::blob::vhd": {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "apiVersion": "2026-09-01",
+      "name": "[format('{0}/{1}/{2}', variables('stagingName'), 'default', 'vhd')]",
+      "dependsOn": [
+        "staging::blob"
+      ]
+    },
+    "staging::blob": {
+      "type": "Microsoft.Storage/storageAccounts/blobServices",
+      "apiVersion": "2026-09-01",
+      "name": "[format('{0}/{1}', variables('stagingName'), 'default')]",
+      "dependsOn": [
+        "staging"
+      ]
+    },
+    "mgmtNsg": {
+      "condition": "[variables('newVnet')]",
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2026-07-01",
+      "name": "[format('nsg-{0}-{1}', parameters('vnetName'), parameters('mgmtSubnetName'))]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "securityRules": "[concat(createArray(__bicep.rule('admin-ssh-https', 100, 'Tcp', parameters('vnetAddressPrefixes'), createArray('22', '443')), __bicep.rule('cluster-store-and-relay', 115, 'Tcp', createArray(parameters('mgmtSubnetPrefix')), createArray('2379-2380', '443')), __bicep.rule('mgmt-name-dns', 120, '*', parameters('vnetAddressPrefixes'), createArray('53'))), variables('adminRules'))]"
+      }
+    },
+    "dataNsg": {
+      "condition": "[variables('newVnet')]",
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2026-07-01",
+      "name": "[format('nsg-{0}-{1}', parameters('vnetName'), parameters('dataSubnetName'))]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "securityRules": "[concat(createArray(__bicep.rule('smb-nfs', 100, 'Tcp', parameters('vnetAddressPrefixes'), createArray('2049', '445')), __bicep.rule('nes-peer-rpc', 105, 'Tcp', createArray(parameters('dataSubnetPrefix')), createArray('7400')), __bicep.rule('namespace-dns', 115, '*', parameters('vnetAddressPrefixes'), createArray('53')), __bicep.rule('iscsi', 120, 'Tcp', parameters('vnetAddressPrefixes'), createArray('3260'))), variables('adminRules'))]"
+      }
+    },
+    "vnet": {
+      "condition": "[variables('newVnet')]",
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2026-07-01",
+      "name": "[parameters('vnetName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": "[parameters('vnetAddressPrefixes')]"
+        },
+        "subnets": [
+          {
+            "name": "[parameters('mgmtSubnetName')]",
+            "properties": {
+              "addressPrefix": "[parameters('mgmtSubnetPrefix')]",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}-{1}', parameters('vnetName'), parameters('mgmtSubnetName')))]"
+              }
+            }
+          },
+          {
+            "name": "[parameters('dataSubnetName')]",
+            "properties": {
+              "addressPrefix": "[parameters('dataSubnetPrefix')]",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}-{1}', parameters('vnetName'), parameters('dataSubnetName')))]"
+              }
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "dataNsg",
+        "mgmtNsg"
+      ]
+    },
+    "staging": {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2026-09-01",
+      "name": "[variables('stagingName')]",
+      "location": "[parameters('location')]",
+      "tags": "[union(parameters('tags'), createObject('role', 'vhd-staging'))]",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "kind": "StorageV2",
+      "properties": {
+        "allowBlobPublicAccess": false,
+        "allowSharedKeyAccess": true,
+        "minimumTlsVersion": "TLS1_2"
+      }
+    },
+    "stage": {
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2026-04-01",
+      "name": "stage-emp-vhd",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "kind": "AzureCLI",
+      "properties": {
+        "azCliVersion": "2.61.0",
+        "retentionInterval": "PT1H",
+        "timeout": "PT2H",
+        "cleanupPreference": "OnSuccess",
+        "environmentVariables": [
+          {
+            "name": "DEFINITION",
+            "value": "emp"
+          },
+          {
+            "name": "VERSION",
+            "value": "[parameters('empVersion')]"
+          },
+          {
+            "name": "WH_ACCOUNT",
+            "value": "[parameters('warehouseAccount')]"
+          },
+          {
+            "name": "WH_CONTAINER",
+            "value": "[parameters('warehouseContainer')]"
+          },
+          {
+            "name": "WH_SAS",
+            "secureValue": "[parameters('warehouseSas')]"
+          },
+          {
+            "name": "ST_ACCOUNT",
+            "value": "[variables('stagingName')]"
+          },
+          {
+            "name": "ST_KEY",
+            "secureValue": "[listKeys('staging', '2026-09-01').keys[0].value]"
+          },
+          {
+            "name": "STORAGE_SUFFIX",
+            "value": "[environment().suffixes.storage]"
+          }
+        ],
+        "scriptContent": "[variables('$fxv#0')]"
+      },
+      "dependsOn": [
+        "staging",
+        "staging::blob::vhd"
+      ]
+    },
+    "gal": {
+      "type": "Microsoft.Compute/galleries",
+      "apiVersion": "2026-03-03",
+      "name": "[variables('gallery')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "description": "FileDS controller and EMP images"
+      }
+    },
+    "empDef": {
+      "type": "Microsoft.Compute/galleries/images",
+      "apiVersion": "2026-03-03",
+      "name": "[format('{0}/{1}', variables('gallery'), 'emp')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "osType": "Linux",
+        "osState": "Generalized",
+        "hyperVGeneration": "V2",
+        "identifier": {
+          "publisher": "FileDS",
+          "offer": "FileDS",
+          "sku": "emp"
+        },
+        "features": [
+          {
+            "name": "IsAcceleratedNetworkSupported",
+            "value": "true"
+          }
+        ],
+        "description": "EMP: FileDS deployer and management"
+      },
+      "dependsOn": [
+        "gal"
+      ]
+    },
+    "unstage": {
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2026-04-01",
+      "name": "unstage-emp-vhd",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "kind": "AzureCLI",
+      "properties": {
+        "azCliVersion": "2.61.0",
+        "retentionInterval": "PT1H",
+        "timeout": "PT15M",
+        "cleanupPreference": "OnSuccess",
+        "environmentVariables": [
+          {
+            "name": "BLOB",
+            "value": "[reference('stage').outputs.blob]"
+          },
+          {
+            "name": "ST_ACCOUNT",
+            "value": "[variables('stagingName')]"
+          },
+          {
+            "name": "ST_KEY",
+            "secureValue": "[listKeys('staging', '2026-09-01').keys[0].value]"
+          },
+          {
+            "name": "IMAGE",
+            "value": "[reference('empImage').outputs.id.value]"
+          }
+        ],
+        "scriptContent": "az storage blob delete --account-name \"$ST_ACCOUNT\" --account-key \"$ST_KEY\" --container-name vhd --name \"$BLOB\" -o none && echo \"deleted $BLOB\""
+      },
+      "dependsOn": [
+        "empImage",
+        "stage",
+        "staging"
+      ]
+    },
+    "pip": {
+      "condition": "[parameters('publicIp')]",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2026-07-01",
+      "name": "[format('{0}-pip', parameters('empName'))]",
+      "location": "[parameters('location')]",
+      "tags": "[union(parameters('tags'), createObject('role', 'emp'))]",
+      "sku": {
+        "name": "Standard"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "Static"
+      }
+    },
+    "nic": {
+      "type": "Microsoft.Network/networkInterfaces",
+      "apiVersion": "2026-07-01",
+      "name": "[format('{0}-nic', parameters('empName'))]",
+      "location": "[parameters('location')]",
+      "tags": "[union(parameters('tags'), createObject('role', 'emp'))]",
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "subnet": {
+                "id": "[variables('mgmtSubnetId')]"
+              },
+              "privateIPAllocationMethod": "Static",
+              "privateIPAddress": "[variables('privateIp')]",
+              "publicIPAddress": "[if(parameters('publicIp'), createObject('id', resourceId('Microsoft.Network/publicIPAddresses', format('{0}-pip', parameters('empName')))), null())]"
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "pip",
+        "vnet"
+      ]
+    },
+    "vm": {
+      "type": "Microsoft.Compute/virtualMachines",
+      "apiVersion": "2026-04-01",
+      "name": "[parameters('empName')]",
+      "location": "[parameters('location')]",
+      "tags": "[union(parameters('tags'), createObject('role', 'emp'))]",
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[parameters('empSize')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "id": "[reference('empImage').outputs.id.value]"
+          },
+          "osDisk": {
+            "name": "[format('{0}-os', parameters('empName'))]",
+            "createOption": "FromImage",
+            "deleteOption": "Delete",
+            "managedDisk": {
+              "storageAccountType": "StandardSSD_LRS"
+            }
+          }
+        },
+        "osProfile": {
+          "computerName": "[parameters('empName')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[if(equals(parameters('authenticationType'), 'password'), parameters('adminPasswordOrKey'), null())]",
+          "linuxConfiguration": "[if(equals(parameters('authenticationType'), 'password'), null(), createObject('disablePasswordAuthentication', true(), 'ssh', createObject('publicKeys', createArray(createObject('path', format('/home/{0}/.ssh/authorized_keys', parameters('adminUsername')), 'keyData', parameters('adminPasswordOrKey'))))))]"
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic', parameters('empName')))]",
+              "properties": {
+                "deleteOption": "Delete"
+              }
+            }
+          ]
+        },
+        "diagnosticsProfile": {
+          "bootDiagnostics": {
+            "enabled": true
+          }
+        }
+      },
+      "dependsOn": [
+        "empImage",
+        "nic"
+      ]
+    },
+    "empImage": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "emp-image-version",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "galleryName": {
+            "value": "[variables('gallery')]"
+          },
+          "definitionName": {
+            "value": "emp"
+          },
+          "version": {
+            "value": "[reference('stage').outputs.version]"
+          },
+          "sourceUri": {
+            "value": "[reference('stage').outputs.uri]"
+          },
+          "storageAccountId": {
+            "value": "[resourceId('Microsoft.Storage/storageAccounts', variables('stagingName'))]"
+          },
+          "tags": {
+            "value": "[union(parameters('tags'), createObject('source', reference('stage').outputs.blob, 'built', reference('stage').outputs.built))]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.48.1.52935",
+              "templateHash": "6355103716429404535"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string"
+            },
+            "galleryName": {
+              "type": "string"
+            },
+            "definitionName": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sourceUri": {
+              "type": "string"
+            },
+            "storageAccountId": {
+              "type": "string"
+            },
+            "tags": {
+              "type": "object"
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Compute/galleries/images/versions",
+              "apiVersion": "2026-03-03",
+              "name": "[format('{0}/{1}/{2}', parameters('galleryName'), parameters('definitionName'), parameters('version'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "publishingProfile": {
+                  "replicaCount": 1,
+                  "storageAccountType": "Standard_LRS"
+                },
+                "storageProfile": {
+                  "osDiskImage": {
+                    "source": {
+                      "storageAccountId": "[parameters('storageAccountId')]",
+                      "uri": "[parameters('sourceUri')]"
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Compute/galleries/images/versions', split(format('{0}/{1}/{2}', parameters('galleryName'), parameters('definitionName'), parameters('version')), '/')[0], split(format('{0}/{1}/{2}', parameters('galleryName'), parameters('definitionName'), parameters('version')), '/')[1], split(format('{0}/{1}/{2}', parameters('galleryName'), parameters('definitionName'), parameters('version')), '/')[2])]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "empDef",
+        "gal",
+        "stage",
+        "staging"
+      ]
+    }
+  },
+  "outputs": {
+    "empUrl": {
+      "type": "string",
+      "value": "[format('https://{0}/', if(parameters('publicIp'), reference('pip').ipAddress, variables('privateIp')))]"
+    },
+    "empPrivateIp": {
+      "type": "string",
+      "value": "[variables('privateIp')]"
+    },
+    "galleryName": {
+      "type": "string",
+      "value": "[variables('gallery')]"
+    },
+    "empImageVersion": {
+      "type": "string",
+      "value": "[reference('stage').outputs.version]"
+    },
+    "servicePrincipalCommand": {
+      "type": "string",
+      "value": "[format('az ad sp create-for-rbac --name sp-emp-{0} --role Contributor --scopes {1}', resourceGroup().name, resourceGroup().id)]"
+    },
+    "nextSteps": {
+      "type": "string",
+      "value": "[format('Open https://{0}/ (EMP needs a few minutes after first boot) and create the EMP admin. Then Settings > Azure connection: a service principal with Contributor on {1} (servicePrincipalCommand). Then Settings > Gallery > New gallery from VHDs: account {2}, container fileds (or blockds), gallery {3} in {4}.', if(parameters('publicIp'), reference('pip').ipAddress, variables('privateIp')), resourceGroup().name, parameters('warehouseAccount'), variables('gallery'), resourceGroup().name)]"
+    }
+  }
+}
