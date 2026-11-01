@@ -18,7 +18,7 @@
         "type": "Microsoft.Common.TextBlock",
         "visible": true,
         "options": {
-          "text": "Template version: 20261101120000"
+          "text": "Template version: 20261101180000"
         }
       },
       {
@@ -33,11 +33,25 @@
         }
       },
       {
+        "name": "empBuild",
+        "type": "Microsoft.Common.DropDown",
+        "label": "EMP build",
+        "defaultValue": "Rust",
+        "toolTip": "Rust: EMP on the Rust server (emp-rust images). Pode: the PowerShell and Pode EMP (emp images). Both manage the same clusters; this picks which EMP image the VM runs.",
+        "constraints": {
+          "required": true,
+          "allowedValues": [
+            { "label": "Rust", "value": "rust" },
+            { "label": "Pode (PowerShell)", "value": "pode" }
+          ]
+        }
+      },
+      {
         "name": "warehouseAccount",
         "type": "Microsoft.Common.TextBox",
         "label": "Storage account name",
         "defaultValue": "nds10192026",
-        "toolTip": "The VHD warehouse. The newest emp-<version>.vhd in its emp container is deployed.",
+        "toolTip": "The VHD warehouse. The newest VHD of the chosen build is deployed: emp-rust-<version>.vhd from its emp-rust container, or emp-<version>.vhd from its emp container.",
         "constraints": {
           "required": true,
           "regex": "^[a-z0-9]{3,24}$",
@@ -51,7 +65,7 @@
           "password": "SAS token",
           "confirmPassword": "Confirm SAS token"
         },
-        "toolTip": "A SAS with read and list on the emp container, with or without the leading ?. Used during the deployment only.",
+        "toolTip": "A SAS with read and list on the emp-rust or emp container, with or without the leading ?. Used during the deployment only.",
         "options": {
           "hideConfirmation": true
         },
@@ -278,6 +292,7 @@
     "outputs": {
       "deploymentName": "[basics('deploymentName')]",
       "location": "[location()]",
+      "empBuild": "[basics('empBuild')]",
       "warehouseAccount": "[basics('warehouseAccount')]",
       "warehouseSas": "[basics('warehouseSas')]",
       "empSize": "[steps('vm').empSize]",

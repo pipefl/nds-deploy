@@ -44,7 +44,7 @@ your SAS. They need no managed identity and no role assignments.
 ```mermaid
 flowchart LR
   subgraph wh["VHD warehouse (remote)"]
-    vhd["emp container<br/>emp-0.20.0.vhd ..."]
+    vhd["emp-rust or emp container<br/>emp-rust-0.24.5.vhd ..."]
   end
 
   subgraph rg["Resource group (created by the deployment)"]
@@ -52,7 +52,7 @@ flowchart LR
     s1["stage-emp-vhd<br/>deployment script"]
     stg["Staging storage account<br/>vhd container"]
     subgraph gal["Compute gallery"]
-      def["emp image definition"] --> ver["version 0.20.0"]
+      def["emp-rust or emp image definition"] --> ver["version 0.24.5"]
     end
     s2["unstage-emp-vhd<br/>deployment script"]
     subgraph net["Virtual network"]
@@ -80,8 +80,9 @@ region (East US).
 
 ### The SAS token
 
-Ask for a SAS on the warehouse with **read** and **list** on the `emp`
-container. Paste it with or without the leading `?`. It is a secure parameter:
+Ask for a SAS on the warehouse with **read** and **list** on the `emp-rust`
+container (Rust build) or the `emp` container (Pode build); an account SAS
+covers both. Paste it with or without the leading `?`. It is a secure parameter:
 it is not shown in the deployment's inputs, and the deployment script gets it
 as a secure environment variable.
 
@@ -119,11 +120,12 @@ quota. A cluster of three E8bds_v5 controllers needs 24.
 | Form field | Example | Notes |
 |---|---|---|
 | Deployment name | `fds1` | 3-12 lowercase letters, numbers and hyphens. The prefix for every resource |
+| EMP build | `Rust` | Rust (default): EMP on the Rust server, from the `emp-rust` container and image definition. Pode (PowerShell): the earlier EMP, from `emp`. This choice goes away once Rust is settled |
 | Subscription | `contoso-storage-01` | |
 | Resource group | `rg-fds-prod` | Create new, or an existing one |
 | Region | `East US` | The free Ebdsv5 vCPU quota shows below once picked |
 | Storage account name | `nds10192026` | The VHD warehouse |
-| SAS token | `sv=2026-02-06&ss=b&srt=co&sp=rl&se=...&sig=...` | Read and list on the `emp` container |
+| SAS token | `sv=2026-02-06&ss=b&srt=co&sp=rl&se=...&sig=...` | Read and list on the build's container |
 
 ### Networking
 

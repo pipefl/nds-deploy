@@ -20,8 +20,15 @@ param tags object = {
 @description('Storage account holding the EMP VHDs.')
 param warehouseAccount string = 'nds10192026'
 
-@description('Container with emp-<version>.vhd blobs.')
-param warehouseContainer string = 'emp'
+@description('EMP build: rust (emp-rust, the Rust server) or pode (emp, PowerShell and Pode). Picks the gallery image definition and the warehouse container.')
+@allowed([
+  'rust'
+  'pode'
+])
+param empBuild string = 'rust'
+
+@description('Container with <definition>-<version>.vhd blobs. Empty: emp-rust for the Rust build, emp for Pode.')
+param warehouseContainer string = ''
 
 @description('SAS with read and list on the container.')
 @secure()
@@ -90,6 +97,8 @@ param adminSourceAddresses array = []
 
 var dn = toLower(deploymentName)
 var empName = '${dn}-emp'
+var empDefinition = empBuild == 'rust' ? 'emp-rust' : 'emp'
+var whContainer = empty(warehouseContainer) ? empDefinition : warehouseContainer
 var galleryName = '${replace(dn, '-', '_')}_gal'
 var stagingName = take('${replace(dn, '-', '')}st${uniqueString(resourceGroup().id)}', 24)
 var newVnet = vnetNewOrExisting == 'new'
@@ -212,10 +221,10 @@ resource stage 'Microsoft.Resources/deploymentScripts@2026-04-01' = {
     timeout: 'PT2H'
     cleanupPreference: 'OnSuccess'
     environmentVariables: [
-      { name: 'DEFINITION', value: 'emp' }
+      { name: 'DEFINITION', value: empDefinition }
       { name: 'VERSION', value: empVersion }
       { name: 'WH_ACCOUNT', value: warehouseAccount }
-      { name: 'WH_CONTAINER', value: warehouseContainer }
+      { name: 'WH_CONTAINER', value: whContainer }
       { name: 'WH_SAS', secureValue: warehouseSas }
       { name: 'ST_ACCOUNT', value: staging.name }
       { name: 'ST_KEY', secureValue: staging.listKeys().keys[0].value }
@@ -239,7 +248,7 @@ resource gal 'Microsoft.Compute/galleries@2026-03-03' = {
 
 resource empDef 'Microsoft.Compute/galleries/images@2026-03-03' = {
   parent: gal
-  name: 'emp'
+  name: empDefinition
   location: location
   tags: tags
   properties: {
@@ -249,12 +258,12 @@ resource empDef 'Microsoft.Compute/galleries/images@2026-03-03' = {
     identifier: {
       publisher: 'FileDS'
       offer: 'FileDS'
-      sku: 'emp'
+      sku: empDefinition
     }
     features: [
       { name: 'IsAcceleratedNetworkSupported', value: 'true' }
     ]
-    description: 'EMP: FileDS deployer and management'
+    description: empBuild == 'rust' ? 'EMP on the Rust server: deployer and management' : 'EMP: FileDS deployer and management'
   }
 }
 

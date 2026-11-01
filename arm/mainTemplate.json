@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.32.4.45862",
-      "templateHash": "9920930722004363981"
+      "templateHash": "2953639586725553906"
     }
   },
   "functions": [
@@ -88,11 +88,22 @@
         "description": "Storage account holding the EMP VHDs."
       }
     },
+    "empBuild": {
+      "type": "string",
+      "defaultValue": "rust",
+      "allowedValues": [
+        "rust",
+        "pode"
+      ],
+      "metadata": {
+        "description": "EMP build: rust (emp-rust, the Rust server) or pode (emp, PowerShell and Pode). Picks the gallery image definition and the warehouse container."
+      }
+    },
     "warehouseContainer": {
       "type": "string",
-      "defaultValue": "emp",
+      "defaultValue": "",
       "metadata": {
-        "description": "Container with emp-<version>.vhd blobs."
+        "description": "Container with <definition>-<version>.vhd blobs. Empty: emp-rust for the Rust build, emp for Pode."
       }
     },
     "warehouseSas": {
@@ -227,6 +238,8 @@
     "$fxv#0": "#!/bin/bash\n# Runs as a deployment script (AzureCLI). Copies one <definition>-<version>.vhd from the\n# warehouse into the staging account, server side. Azure builds gallery images only from a\n# VHD in the same subscription, so the image version is made from the staged copy.\n#\n# in:  DEFINITION, VERSION (latest or x.y.z), WH_ACCOUNT, WH_CONTAINER, WH_SAS, ST_ACCOUNT, ST_KEY, STORAGE_SUFFIX\n# out: version, blob, uri, nes, stack, built\nset -euo pipefail\nSAS=\"${WH_SAS#\\?}\"\n\nif [ \"$VERSION\" = \"latest\" ]; then\n  BLOB=$(az storage blob list --account-name \"$WH_ACCOUNT\" --container-name \"$WH_CONTAINER\" --sas-token \"$SAS\" \\\n           --query \"[].name\" -o tsv | grep -E \"^${DEFINITION}-[0-9]+\\.[0-9]+\\.[0-9]+\\.vhd$\" | sort -V | tail -1 || true)\n  if [ -z \"$BLOB\" ]; then\n    echo \"No ${DEFINITION}-<version>.vhd in $WH_ACCOUNT/$WH_CONTAINER. The SAS needs read and list on that container.\" >&2\n    exit 1\n  fi\nelse\n  BLOB=\"${DEFINITION}-${VERSION}.vhd\"\nfi\nVER=\"${BLOB#\"${DEFINITION}\"-}\"; VER=\"${VER%.vhd}\"\necho \"using $BLOB\"\n\nst() { az storage blob \"$@\" --account-name \"$ST_ACCOUNT\" --account-key \"$ST_KEY\"; }\n\ncopy() { st show --container-name vhd --name \"$BLOB\" --query \"properties.copy.$1\" -o tsv 2>/dev/null || true; }\n\nstate=$(copy status)\ncase \"$state\" in\n  success) echo \"$BLOB is already staged\" ;;\n  pending) echo \"$BLOB is still being copied by an earlier run\" ;;\n  *)\n    echo \"copying $BLOB into $ST_ACCOUNT (server side)\"\n    st copy start --destination-blob \"$BLOB\" --destination-container vhd \\\n       --source-uri \"https://$WH_ACCOUNT.blob.$STORAGE_SUFFIX/$WH_CONTAINER/$BLOB?$SAS\" -o none\n    state=pending ;;\nesac\nwhile [ \"$state\" = \"pending\" ]; do\n  sleep 15\n  state=$(copy status)\n  echo \"  $state $(copy progress)\"\ndone\nif [ \"$state\" != \"success\" ]; then\n  echo \"copy of $BLOB ended ${state:-with no copy state}\" >&2\n  exit 1\nfi\n\n# the warehouse blob's metadata (nes, stack, built) becomes the image version's tags\nmd=$(az storage blob metadata show --account-name \"$WH_ACCOUNT\" --container-name \"$WH_CONTAINER\" --name \"$BLOB\" --sas-token \"$SAS\" -o json 2>/dev/null || echo '{}')\njq -n --arg version \"$VER\" --arg blob \"$BLOB\" --arg uri \"https://$ST_ACCOUNT.blob.$STORAGE_SUFFIX/vhd/$BLOB\" --argjson md \"$md\" \\\n  '{version: $version, blob: $blob, uri: $uri, nes: ($md.nes // \"\"), stack: ($md.stack // \"\"), built: ($md.built // \"\")}' > \"$AZ_SCRIPTS_OUTPUT_PATH\"\ncat \"$AZ_SCRIPTS_OUTPUT_PATH\"\n",
     "dn": "[toLower(parameters('deploymentName'))]",
     "empName": "[format('{0}-emp', variables('dn'))]",
+    "empDefinition": "[if(equals(parameters('empBuild'), 'rust'), 'emp-rust', 'emp')]",
+    "whContainer": "[if(empty(parameters('warehouseContainer')), variables('empDefinition'), parameters('warehouseContainer'))]",
     "galleryName": "[format('{0}_gal', replace(variables('dn'), '-', '_'))]",
     "stagingName": "[take(format('{0}st{1}', replace(variables('dn'), '-', ''), uniqueString(resourceGroup().id)), 24)]",
     "newVnet": "[equals(parameters('vnetNewOrExisting'), 'new')]",
@@ -354,7 +367,7 @@
         "environmentVariables": [
           {
             "name": "DEFINITION",
-            "value": "emp"
+            "value": "[variables('empDefinition')]"
           },
           {
             "name": "VERSION",
@@ -366,7 +379,7 @@
           },
           {
             "name": "WH_CONTAINER",
-            "value": "[parameters('warehouseContainer')]"
+            "value": "[variables('whContainer')]"
           },
           {
             "name": "WH_SAS",
@@ -405,7 +418,7 @@
     "empDef": {
       "type": "Microsoft.Compute/galleries/images",
       "apiVersion": "2026-03-03",
-      "name": "[format('{0}/{1}', variables('galleryName'), 'emp')]",
+      "name": "[format('{0}/{1}', variables('galleryName'), variables('empDefinition'))]",
       "location": "[parameters('location')]",
       "tags": "[parameters('tags')]",
       "properties": {
@@ -415,7 +428,7 @@
         "identifier": {
           "publisher": "FileDS",
           "offer": "FileDS",
-          "sku": "emp"
+          "sku": "[variables('empDefinition')]"
         },
         "features": [
           {
@@ -423,7 +436,7 @@
             "value": "true"
           }
         ],
-        "description": "EMP: FileDS deployer and management"
+        "description": "[if(equals(parameters('empBuild'), 'rust'), 'EMP on the Rust server: deployer and management', 'EMP: FileDS deployer and management')]"
       },
       "dependsOn": [
         "gal"
@@ -574,7 +587,7 @@
             "value": "[variables('galleryName')]"
           },
           "definitionName": {
-            "value": "emp"
+            "value": "[variables('empDefinition')]"
           },
           "version": {
             "value": "[reference('stage').outputs.version]"
