@@ -202,10 +202,11 @@ The deployment's **Outputs** has `empUrl`, `nextSteps` and
 
    Enter `tenant`, `appId` and `password` from its output, and the
    subscription ID.
-3. **Settings > Gallery > New gallery from VHDs**: storage account
-   `nds10192026`, container `fileds` (or `blockds`), a SAS with read and list
-   on it, and the gallery this deployment made. This adds the controller images
-   to the gallery.
+3. **Settings > Gallery**: pick the gallery this deployment made
+   (`<deployment name>_gal`). Then **Settings > Images > Import images**:
+   storage account `nds10192026` and a SAS with read and list. EMP lists the
+   `fileds`, `blockds` and `emp` containers and ticks the newest image of each;
+   only the ticked VHDs are copied into the gallery.
 4. **New deployment**: the network and the two subnets from this deployment,
    the newest controller image.
 

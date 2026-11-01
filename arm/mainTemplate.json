@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.32.4.45862",
-      "templateHash": "12757121417622836307"
+      "templateHash": "9920930722004363981"
     }
   },
   "functions": [
@@ -687,7 +687,7 @@
     },
     "nextSteps": {
       "type": "string",
-      "value": "[format('Open https://{0}/ (EMP needs a few minutes after first boot) and create the EMP admin. Then Settings > Azure connection: a service principal with Contributor on {1} (servicePrincipalCommand). Then Settings > Gallery > New gallery from VHDs: account {2}, container fileds (or blockds), gallery {3} in {4}.', if(parameters('publicIp'), reference('pip').ipAddress, variables('privateIp')), resourceGroup().name, parameters('warehouseAccount'), variables('galleryName'), resourceGroup().name)]"
+      "value": "[format('Open https://{0}/ (EMP needs a few minutes after first boot) and create the EMP admin. Then Settings > Azure connection: a service principal with Contributor on {1} (servicePrincipalCommand). Then Settings > Gallery: pick {2}. Then Settings > Images > Import images: account {3}, a SAS with read and list, and tick the FileDS and BlockDS images you want.', if(parameters('publicIp'), reference('pip').ipAddress, variables('privateIp')), resourceGroup().name, variables('galleryName'), parameters('warehouseAccount'))]"
     }
   }
 }

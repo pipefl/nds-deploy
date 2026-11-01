@@ -383,4 +383,4 @@ output empPrivateIp string = privateIp
 output galleryName string = gal.name
 output empImageVersion string = stage.properties.outputs.version
 output servicePrincipalCommand string = 'az ad sp create-for-rbac --name ${dn}-emp-sp --role Contributor --scopes ${resourceGroup().id}'
-output nextSteps string = 'Open https://${empAddress}/ (EMP needs a few minutes after first boot) and create the EMP admin. Then Settings > Azure connection: a service principal with Contributor on ${resourceGroup().name} (servicePrincipalCommand). Then Settings > Gallery > New gallery from VHDs: account ${warehouseAccount}, container fileds (or blockds), gallery ${gal.name} in ${resourceGroup().name}.'
+output nextSteps string = 'Open https://${empAddress}/ (EMP needs a few minutes after first boot) and create the EMP admin. Then Settings > Azure connection: a service principal with Contributor on ${resourceGroup().name} (servicePrincipalCommand). Then Settings > Gallery: pick ${gal.name}. Then Settings > Images > Import images: account ${warehouseAccount}, a SAS with read and list, and tick the FileDS and BlockDS images you want.'
