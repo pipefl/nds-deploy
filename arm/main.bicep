@@ -68,7 +68,7 @@ param vnetName string = '${deploymentName}-vnet'
 @description('Resource group of an existing virtual network.')
 param vnetResourceGroup string = resourceGroup().name
 
-@description('Address space of a new virtual network.')
+@description('Address space of a new virtual network. Keep it out of 172.16.0.0/12: Docker uses that range inside EMP and the controllers.')
 param vnetAddressPrefixes array = [
   '10.30.0.0/16'
 ]

@@ -5,8 +5,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.48.1.52935",
-      "templateHash": "15618084426492756233"
+      "version": "0.32.4.45862",
+      "templateHash": "12757121417622836307"
     }
   },
   "functions": [
@@ -184,7 +184,7 @@
         "10.30.0.0/16"
       ],
       "metadata": {
-        "description": "Address space of a new virtual network."
+        "description": "Address space of a new virtual network. Keep it out of 172.16.0.0/12: Docker uses that range inside EMP and the controllers."
       }
     },
     "mgmtSubnetName": {
@@ -378,7 +378,7 @@
           },
           {
             "name": "ST_KEY",
-            "secureValue": "[listKeys('staging', '2026-09-01').keys[0].value]"
+            "secureValue": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('stagingName')), '2026-09-01').keys[0].value]"
           },
           {
             "name": "STORAGE_SUFFIX",
@@ -452,7 +452,7 @@
           },
           {
             "name": "ST_KEY",
-            "secureValue": "[listKeys('staging', '2026-09-01').keys[0].value]"
+            "secureValue": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('stagingName')), '2026-09-01').keys[0].value]"
           },
           {
             "name": "IMAGE",
@@ -559,7 +559,7 @@
     },
     "empImage": {
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
+      "apiVersion": "2022-09-01",
       "name": "[format('{0}-emp-image', variables('dn'))]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -595,8 +595,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.48.1.52935",
-              "templateHash": "9752533279671197833"
+              "version": "0.32.4.45862",
+              "templateHash": "2382468772343257127"
             }
           },
           "parameters": {

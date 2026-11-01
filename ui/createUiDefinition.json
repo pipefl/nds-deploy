@@ -18,7 +18,7 @@
         "type": "Microsoft.Common.TextBlock",
         "visible": true,
         "options": {
-          "text": "Template version: 20261031200000"
+          "text": "Template version: 20261031210000"
         }
       },
       {
@@ -131,12 +131,42 @@
             }
           },
           {
+            "name": "dockerRangeError",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": "[or(startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.16.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.17.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.18.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.19.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.20.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.21.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.22.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.23.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.24.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.25.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.26.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.27.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.28.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.29.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.30.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.31.'))]",
+            "options": {
+              "icon": "Error",
+              "text": "Pick an address space outside 172.16.0.0/12 (172.16.x.x to 172.31.x.x). Docker uses that range inside EMP and the controllers, and a network there makes EMP unreachable. 10.30.0.0/16 works, for example."
+            }
+          },
+          {
+            "name": "dockerRangeCheck",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Address space check",
+            "visible": "[or(startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.16.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.17.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.18.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.19.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.20.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.21.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.22.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.23.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.24.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.25.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.26.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.27.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.28.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.29.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.30.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.31.'))]",
+            "defaultValue": "change the address space above",
+            "toolTip": "Pick an address space outside 172.16.0.0/12 (172.16.x.x to 172.31.x.x). Docker uses that range inside EMP and the controllers, and a network there makes EMP unreachable. 10.30.0.0/16 works, for example.",
+            "constraints": {
+              "required": false,
+              "validations": [
+                {
+                  "regex": "^.*$",
+                  "message": "Pick an address space outside 172.16.0.0/12 (172.16.x.x to 172.31.x.x). Docker uses that range inside EMP and the controllers, and a network there makes EMP unreachable. 10.30.0.0/16 works, for example."
+                },
+                {
+                  "isValid": "[not(or(startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.16.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.17.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.18.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.19.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.20.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.21.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.22.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.23.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.24.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.25.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.26.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.27.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.28.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.29.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.30.'), startsWith(string(first(steps('network').vnet.addressPrefixes)), '172.31.')))]",
+                  "message": "Pick an address space outside 172.16.0.0/12 (172.16.x.x to 172.31.x.x). Docker uses that range inside EMP and the controllers, and a network there makes EMP unreachable. 10.30.0.0/16 works, for example."
+                }
+              ]
+            }
+          },
+          {
             "name": "newVnetInfo",
             "type": "Microsoft.Common.InfoBox",
             "visible": "[equals(steps('network').vnet.newOrExisting, 'new')]",
             "options": {
               "icon": "Info",
-              "text": "[concat('Names left at vnet, mgmt and data become ', basics('deploymentName'), '-vnet, ', basics('deploymentName'), '-mgmt and ', basics('deploymentName'), '-data. Each subnet gets its own NSG on the subnet (', basics('deploymentName'), '-mgmt-nsg and ', basics('deploymentName'), '-data-nsg), none on NICs. Inside the network: SSH and HTTPS to management, NFS, SMB and iSCSI to data, DNS on both, and the cluster ports. From outside, only the addresses below get in.')]"
+              "text": "[concat('Keep the address space out of 172.16.0.0/12 (Docker uses it). Names left at vnet, mgmt and data become ', basics('deploymentName'), '-vnet, ', basics('deploymentName'), '-mgmt and ', basics('deploymentName'), '-data. Each subnet gets its own NSG on the subnet (', basics('deploymentName'), '-mgmt-nsg and ', basics('deploymentName'), '-data-nsg), none on NICs. Inside the network: SSH and HTTPS to management, NFS, SMB and iSCSI to data, DNS on both, and the cluster ports. From outside, only the addresses below get in.')]"
             }
           },
           {

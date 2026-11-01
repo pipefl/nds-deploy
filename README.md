@@ -160,6 +160,10 @@ For deployment name `fds1`:
 The EMP image is always the newest `emp-<version>.vhd` in the warehouse's
 `emp` container.
 
+### Address space
+
+Keep the network out of 172.16.0.0/12 (172.16.x.x to 172.31.x.x). Docker uses that range inside EMP and the controllers; a network there routes EMP's replies away from its container, and EMP doesn't answer. The portal fills in the first free /16 in the subscription, which can land there, so the form refuses it and asks for another range. 10.30.0.0/16 is the template's default.
+
 ### NSG rules on a new network
 
 "Inside" is the network's address space.
