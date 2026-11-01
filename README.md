@@ -1,6 +1,6 @@
 # EMP deployment
 
-Deploys EMP, the deployer and management front end for Nectere DS (FileDS and
+Deploys EMP, the deployer and management front end for Neam Data (FileDS and
 BlockDS), into a resource group: the network the clusters will use, a compute
 gallery with the EMP image taken from the VHD warehouse, and the EMP virtual
 machine. When it finishes, EMP is waiting for its first sign-in in the browser.
